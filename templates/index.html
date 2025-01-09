@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Switchboard Chatbot</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .chatbot-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            width: 400px;
+            display: none;
+        }
+
+        .chat-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: #2563eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .chat-button:hover {
+            transform: scale(1.1);
+        }
+
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+        }
+
+        .message {
+            animation: fadeIn 0.3s ease-in;
+            margin-bottom: 10px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            margin-left: auto;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom scrollbar */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Responsive design */
+        @media (max-width: 640px) {
+            .chatbot-container {
+                width: 100%;
+                height: 100%;
+                bottom: 0;
+                right: 0;
+            }
+            
+            .chat-messages {
+                height: calc(100vh - 140px);
+            }
+            
+            .chat-button {
+                bottom: 10px;
+                right: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Chat Button -->
+    <div class="chat-button" onclick="toggleChat()">
+        <i class="fas fa-comments text-white text-2xl"></i>
+    </div>
+
+    <!-- Chatbot Container -->
+    <div class="chatbot-container" id="chatbot">
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <!-- Chat Header -->
+            <div class="bg-blue-600 p-4 flex justify-between items-center">
+                <div class="flex items-center">
+                    <img src="https://myswitchboard.ca/favicon.ico" alt="Switchboard Logo" class="w-8 h-8 mr-2">
+                    <h3 class="text-white font-semibold">Switchboard Assistant</h3>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="clearHistory()" class="text-white hover:text-gray-200 transition">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button onclick="toggleChat()" class="text-white hover:text-gray-200 transition">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat Messages -->
+            <div id="chat-container" class="chat-messages bg-gray-50 p-4">
+                <!-- Messages will be inserted here -->
+            </div>
+
+            <!-- Chat Input -->
+            <div class="p-4 border-t">
+                <div class="flex gap-2">
+                    <input type="text" 
+                           id="query-input" 
+                           class="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="Type your message..."
+                           onkeypress="if(event.key === 'Enter') sendQuery()">
+                    <button onclick="sendQuery()" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg transition">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const sessionId = Date.now().toString();
+        let isProcessing = false;
+
+        // Initialize with welcome message when chat is opened
+        function initializeChat() {
+            const container = document.getElementById('chat-container');
+            if (container.children.length === 0) {
+                addMessage({
+                    role: 'assistant',
+                    content: 'Welcome to Switchboard! 👋 I\'m here to help connect you with the right resources for your business journey. What type of support are you looking for?'
+                });
+            }
+        }
+
+        function toggleChat() {
+            const chatbot = document.getElementById('chatbot');
+            const chatButton = document.querySelector('.chat-button');
+            const isVisible = chatbot.style.display === 'block';
+
+            chatbot.style.display = isVisible ? 'none' : 'block';
+            chatButton.style.display = isVisible ? 'flex' : 'none';
+
+            if (!isVisible) {
+                initializeChat();
+                document.getElementById('query-input').focus();
+            }
+        }
+
+        async function sendQuery() {
+            if (isProcessing) return;
+
+            const input = document.getElementById('query-input');
+            const query = input.value.trim();
+            
+            if (!query) return;
+            
+            isProcessing = true;
+            input.value = '';
+
+            addMessage({
+                role: 'user',
+                content: query
+            });
+
+            try {
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        query: query,
+                        session_id: sessionId 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    addMessage({
+                        role: 'error',
+                        content: `Error: ${data.error}`
+                    });
+                } else {
+                    addMessage({
+                        role: 'assistant',
+                        content: data.response
+                    });
+                }
+            } catch (error) {
+                addMessage({
+                    role: 'error',
+                    content: `Error: ${error.message}`
+                });
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        function addMessage({ role, content }) {
+            const container = document.getElementById('chat-container');
+            const messageDiv = document.createElement('div');
+            
+            const isUser = role === 'user';
+            messageDiv.className = `message p-3 rounded-lg ${getMessageStyles(role)} ${isUser ? 'user-message' : ''}`;
+            
+            const messageContent = document.createElement('p');
+            messageContent.className = 'text-sm';
+            messageContent.textContent = content;
+            
+            messageDiv.appendChild(messageContent);
+            container.appendChild(messageDiv);
+            
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function getMessageStyles(role) {
+            switch (role) {
+                case 'user':
+                    return 'bg-blue-500 text-white';
+                case 'assistant':
+                    return 'bg-gray-200 text-gray-900';
+                case 'error':
+                    return 'bg-red-100 text-red-900';
+                default:
+                    return 'bg-gray-200 text-gray-900';
+            }
+        }
+
+        async function clearHistory() {
+            try {
+                await fetch('/api/clear_history', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+
+                const container = document.getElementById('chat-container');
+                container.innerHTML = '';
+
+                addMessage({
+                    role: 'assistant',
+                    content: 'Chat history cleared. How can I help you today?'
+                });
+            } catch (error) {
+                addMessage({
+                    role: 'error',
+                    content: `Error clearing history: ${error.message}`
+                });
+            }
+        }
+
+        // Add enter key handler for input
+        document.getElementById('query-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendQuery();
+            }
+        });
+    </script>
+</body>
+</html>
