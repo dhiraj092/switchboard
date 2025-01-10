@@ -9,7 +9,9 @@ load_dotenv()
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
 def main():
+    # Initialize embeddings without proxies
     embedding_function = OpenAIEmbeddings()
+    
     vector = embedding_function.embed_query("design")
     print(f"Vector for 'design': {vector}")
     print(f"Vector length: {len(vector)}")
