@@ -3,7 +3,12 @@ from query_data import process_query
 from dotenv import load_dotenv
 import os
 
+# Load environment variables at startup
 load_dotenv()
+
+# Verify OpenAI API key is set
+if not os.getenv("OPENAI_API_KEY"):
+    raise RuntimeError("OPENAI_API_KEY environment variable is not set")
 
 app = Flask(__name__)
 
@@ -29,9 +34,9 @@ def query():
     try:
         result, updated_history = process_query(query_text, chat_history)
         chat_histories[session_id] = updated_history
-        
         return jsonify(result)
     except Exception as e:
+        print(f"Error processing query: {str(e)}")  # Add logging
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/chat_history', methods=['GET'])
@@ -48,4 +53,5 @@ def clear_history():
     return jsonify({'message': 'Chat history cleared'})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)

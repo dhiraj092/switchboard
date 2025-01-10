@@ -1,4 +1,7 @@
+__pycache__/
+*.pyc
 .env
-chroma_*
-chroma
+.venv
+venv/
+chroma/
 .DS_Store
