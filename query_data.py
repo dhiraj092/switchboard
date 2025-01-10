@@ -39,39 +39,19 @@ Provide a relevant response that:
 Response should be concise, practical, and focus on actionable next steps.
 """
 
-def ensure_directories():
-    """Create necessary directories if they don't exist."""
-    if not os.path.exists(CHROMA_PATH):
-        os.makedirs(CHROMA_PATH)
-        print(f"Created {CHROMA_PATH} directory")
-        return False
-    return True
-
 def process_query(query_text, chat_history=None):
     try:
-        # Check if Chroma directory exists
-        if not os.path.exists(CHROMA_PATH):
-            return {"error": "Database not initialized. Please run create_database.py first."}, chat_history
-
         # Initialize OpenAI embeddings with just the API key
         api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            return {"error": "OpenAI API key not found"}, chat_history
-
         embeddings = OpenAIEmbeddings(openai_api_key=api_key)
         
-        # Initialize Chroma
+        # Initialize Chroma with basic settings
         db = Chroma(
             persist_directory=CHROMA_PATH,
             embedding_function=embeddings
         )
         
-        # Perform search
-        try:
-            results = db.similarity_search_with_relevance_scores(query_text, k=3)
-        except Exception as e:
-            print(f"Search error: {str(e)}")
-            return {"error": "Unable to search database. Please ensure database is properly initialized."}, chat_history
+        results = db.similarity_search_with_relevance_scores(query_text, k=3)
         
         if not results:
             return {"error": "No relevant resources found"}, chat_history
@@ -103,9 +83,6 @@ def process_query(query_text, chat_history=None):
         return {"error": f"An error occurred: {str(e)}"}, chat_history
 
 def chat():
-    # Ensure directories exist
-    ensure_directories()
-    
     chat_history = []
     print("Welcome to Switchboard! 👋 I'm here to help connect you with the right resources for your business journey. What type of support are you looking for?")
     
@@ -123,9 +100,6 @@ def chat():
            print("Assistant:", result["response"])
 
 def main():
-    # Ensure directories exist
-    ensure_directories()
-    
     parser = argparse.ArgumentParser(description="Switchboard Resource Assistant")
     parser.add_argument("--query", type=str, help="Direct text query for resource matching")
     args = parser.parse_args()
