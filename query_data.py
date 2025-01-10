@@ -4,13 +4,13 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 import os
+import openai
 
 # Load environment variables
 load_dotenv()
 
-# Verify API key is loaded
-if not os.getenv("OPENAI_API_KEY"):
-    raise ValueError("OPENAI_API_KEY not found in environment variables")
+# Set OpenAI API key for the openai package
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 CHROMA_PATH = "chroma"
 
@@ -44,10 +44,8 @@ Response should be concise, practical, and focus on actionable next steps.
 
 def process_query(query_text, chat_history=None):
     try:
-        # Initialize OpenAI embeddings with explicit API key
-        embedding_function = OpenAIEmbeddings(
-            openai_api_key=os.getenv("OPENAI_API_KEY")
-        )
+        # Initialize OpenAI embeddings without extra parameters
+        embedding_function = OpenAIEmbeddings()
         
         # Initialize Chroma with embeddings
         db = Chroma(
@@ -69,10 +67,8 @@ def process_query(query_text, chat_history=None):
         else:
             formatted_history = ""
         
-        # Initialize ChatOpenAI with explicit API key    
-        chat = ChatOpenAI(
-            openai_api_key=os.getenv("OPENAI_API_KEY")
-        )
+        # Initialize ChatOpenAI
+        chat = ChatOpenAI()
         
         response = chat.predict(prompt.format(
             context=context,
