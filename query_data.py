@@ -9,7 +9,7 @@ import openai
 # Load environment variables
 load_dotenv()
 
-# Set OpenAI API key for the openai package
+# Set OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 CHROMA_PATH = "chroma"
@@ -44,10 +44,10 @@ Response should be concise, practical, and focus on actionable next steps.
 
 def process_query(query_text, chat_history=None):
     try:
-        # Initialize OpenAI embeddings without extra parameters
+        # Initialize OpenAI embeddings
         embedding_function = OpenAIEmbeddings()
         
-        # Initialize Chroma with embeddings
+        # Initialize Chroma
         db = Chroma(
             persist_directory=CHROMA_PATH,
             embedding_function=embedding_function
@@ -82,6 +82,7 @@ def process_query(query_text, chat_history=None):
         return {"response": response}, updated_history
         
     except Exception as e:
+        print(f"Error in process_query: {str(e)}")  # Add logging
         return {"error": f"An error occurred: {str(e)}"}, chat_history
 
 def chat():
