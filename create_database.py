@@ -1,109 +1,129 @@
-from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
-import openai 
-from dotenv import load_dotenv
+import argparse
 import os
-import shutil
+import pandas as pd
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
 
-load_dotenv()
+# Constants
+DATA_FOLDER = "data"
+EXCEL_FILE = "Switchboard Resources from Partners_August 2024.xlsx"
+PROMPT_TEMPLATE = """
+Answer the question based only on the following context:
 
-CHROMA_PATH = "chroma"
-DATA_PATH = "data"
+{context}
 
-def ensure_directories():
-    """Create necessary directories if they don't exist."""
-    for directory in [DATA_PATH, CHROMA_PATH]:
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-            print(f"Created directory: {directory}")
+---
 
-def load_documents():
-    # Ensure data directory exists
-    if not os.path.exists(DATA_PATH):
-        os.makedirs(DATA_PATH)
-        print(f"Created {DATA_PATH} directory")
-        return []
+Answer the question based on the above context: {question}
+"""
 
-    documents = []
-    for filename in os.listdir(DATA_PATH):
-        if filename.endswith('.md'):
-            try:
-                file_path = os.path.join(DATA_PATH, filename)
-                loader = TextLoader(file_path, encoding='utf-8')
-                documents.extend(loader.load())
-                print(f"Loaded {filename} successfully")
-            except Exception as e:
-                print(f"Error loading {filename}: {str(e)}")
-    return documents
+def load_excel_as_dataframe():
+    """
+    Load the Excel file into a Pandas DataFrame.
+    :return: A DataFrame containing the Excel data.
+    """
+    file_path = os.path.join(DATA_FOLDER, EXCEL_FILE)
+    if not os.path.exists(file_path):
+        print(f"Excel file '{EXCEL_FILE}' not found in '{DATA_FOLDER}'.")
+        return pd.DataFrame()
 
-def split_text(documents: list[Document]):
-    if not documents:
-        print("No documents to split!")
-        return []
-        
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=100,
-        length_function=len,
-        add_start_index=True,
+    try:
+        return pd.read_excel(file_path)
+    except Exception as e:
+        print(f"Error loading Excel file: {e}")
+        return pd.DataFrame()
+
+def search_dataframe(data, query):
+    """
+    Search the DataFrame for relevant rows based on the query.
+    :param data: DataFrame containing the Excel data.
+    :param query: User's query string.
+    :return: Filtered DataFrame matching the query.
+    """
+    if data.empty:
+        return pd.DataFrame()
+
+    matches = data.apply(
+        lambda row: query.lower() in " ".join(str(value).lower() for value in row if pd.notna(value)), axis=1
     )
-    chunks = text_splitter.split_documents(documents)
-    print(f"Split {len(documents)} documents into {len(chunks)} chunks.")
+    return data[matches]
 
-    if chunks:
-        document = chunks[0]
-        print("\nExample chunk content:")
-        print(document.page_content)
-        print("\nMetadata:", document.metadata)
+def generate_response(context, question):
+    """
+    Generates a response using OpenAI's model based on the provided context and question.
+    :param context: Contextual information retrieved from the database.
+    :param question: User's query.
+    :return: The model's response.
+    """
+    try:
+        prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+        prompt = prompt_template.format(context=context, question=question)
+        model = ChatOpenAI()
+        return model.predict(prompt)
+    except Exception as e:
+        print(f"Error generating response: {e}")
+        return "Unable to generate a response at this time."
 
-    return chunks
+def chatbot():
+    """
+    Interactive chatbot for SwitchboardBuddy.
+    """
+    print("Welcome to SwitchboardBuddy! 🌟 I'm here to help you connect with resources for your business.\n")
 
-def save_to_chroma(chunks: list[Document]):
-    if not chunks:
-        print("No chunks to save to Chroma!")
+    # Load Excel data
+    data = load_excel_as_dataframe()
+    if data.empty:
+        print("No data found. Please ensure the Excel file is correctly placed in the 'data' folder.\n")
         return
 
-    # Ensure Chroma directory exists
-    if not os.path.exists(CHROMA_PATH):
-        os.makedirs(CHROMA_PATH)
-        print(f"Created {CHROMA_PATH} directory")
-    else:
-        shutil.rmtree(CHROMA_PATH)
-        os.makedirs(CHROMA_PATH)
-        print(f"Recreated {CHROMA_PATH} directory")
+    while True:
+        query = input("How can I assist you today? (Type 'exit' to quit): ").strip()
+        if query.lower() == "exit":
+            print("Goodbye! 👋")
+            break
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    embeddings = OpenAIEmbeddings(openai_api_key=api_key)
-    
-    try:
-        db = Chroma.from_documents(
-            chunks, embeddings, persist_directory=CHROMA_PATH
-        )
-        db.persist()
-        print(f"Saved {len(chunks)} chunks to {CHROMA_PATH}.")
-    except Exception as e:
-        print(f"Error saving to Chroma: {str(e)}")
+        # Search the DataFrame for matching rows
+        results = search_dataframe(data, query)
+        if not results.empty:
+            print("\nHere are some resources that match your query:")
+            for _, row in results.iterrows():
+                title = row.get("Title", "No Title")
+                link = row.get("Button Link", "No Link")
+                print(f"- **{title}**: [Learn more]({link})")
+            continue
+
+        # No match found
+        print("\nNo matching resources found. Let me generate a helpful response.")
+        response = generate_response("No relevant context found in the data.", query)
+        print(f"Response: {response}")
 
 def main():
-    # Ensure all necessary directories exist
-    ensure_directories()
-    
-    print("Loading documents...")
-    documents = load_documents()
-    
-    if not documents:
-        print("No documents were loaded. Please check your data directory.")
-        return
-        
-    print("\nSplitting text...")
-    chunks = split_text(documents)
-    
-    print("\nSaving to Chroma...")
-    save_to_chroma(chunks)
-    print("Done!")
+    """
+    Main function to handle CLI arguments and execute the chatbot logic.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("query_text", type=str, nargs="?", help="The query text.")
+    args = parser.parse_args()
+
+    if args.query_text:
+        # Non-interactive mode
+        data = load_excel_as_dataframe()
+        if not data.empty:
+            results = search_dataframe(data, args.query_text)
+            if not results.empty:
+                print("\nHere are some resources that match your query:")
+                for _, row in results.iterrows():
+                    title = row.get("Title", "No Title")
+                    link = row.get("Button Link", "No Link")
+                    print(f"- **{title}**: [Learn more]({link})")
+                return
+
+        # No match found, generate response
+        response = generate_response("No relevant context found in the data.", args.query_text)
+        print(f"Response: {response}")
+    else:
+        # Interactive mode
+        chatbot()
 
 if __name__ == "__main__":
     main()
