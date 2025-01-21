@@ -1,12 +1,6 @@
-flask==3.0.2
-werkzeug==3.0.1
-gunicorn==21.2.0
-python-dotenv==1.0.1
-langchain==0.1.9
-langchain-community==0.0.24
+flask
+python-dotenv
+openai
+langchain
 langchain-openai==0.0.5
-chromadb==0.4.22
-openai==1.12.0
-tiktoken==0.6.0
-pillow==10.2.0
-pytesseract==0.3.10
+tiktoken<0.6.0
