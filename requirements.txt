@@ -4,3 +4,4 @@ openai
 langchain
 langchain-openai==0.0.5
 tiktoken<0.6.0
+gunicorn
